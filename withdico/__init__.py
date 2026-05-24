@@ -1,3 +1,4 @@
+import importlib
 import inspect
 import os
 import sys
@@ -113,22 +114,49 @@ class DiCoc:
     def _resolve_implementation(self, type_: type) -> type:
         """
         CoC (Convention over Configuration):
-        抽象クラス（ABCやProtocol）の場合、同じモジュール内の "Default" + クラス名 を実装とする。
+        抽象クラス（ABCやProtocol）の場合、"Default" + クラス名 の実装クラスを探す。
+        検索順: @package デコレーターで指定されたモジュール（記述順）→ 同一モジュール（フォールバック）
         具象クラスの場合はそのまま使用する。
         """
         if not inspect.isabstract(type_):
             return type_
 
         impl_name = _IMPL_PREFIX + type_.__name__
-        module = sys.modules.get(type_.__module__)
-        impl_cls = getattr(module, impl_name, None) if module else None
 
-        if not isinstance(impl_cls, type):
-            raise DiCocImplementationException(impl_name)
+        search_paths: list[str] = list(getattr(type_, '__di_packages__', []))
+        search_paths.append(type_.__module__)  # 同一モジュールをフォールバックとして末尾に追加
 
-        return impl_cls
+        for module_path in search_paths:
+            if module_path not in sys.modules:
+                try:
+                    importlib.import_module(module_path)
+                except ImportError:
+                    continue
+            module = sys.modules.get(module_path)
+            impl_cls = getattr(module, impl_name, None) if module else None
+            if isinstance(impl_cls, type):
+                return impl_cls
+
+        raise DiCocImplementationException(impl_name)
 
 
 def resolve(type_: type[T], name: str = DiCoc.DEFAULT_NAME) -> T:
     """DiCoc.resolve() のショートカット関数"""
     return DiCoc.resolve(type_, name)
+
+
+def package(module_path: str) -> Callable[[type[T]], type[T]]:
+    """
+    実装クラスの検索先モジュールを指定するデコレーター。
+    複数指定した場合は記述順（上から）に優先して検索される。
+
+    @package('myproject.api')
+    @package('myproject.impl')
+    class Greeter(ABC): ...
+    # 検索順: myproject.api → myproject.impl → 同一モジュール（フォールバック）
+    """
+    def decorator(cls: type[T]) -> type[T]:
+        existing: list[str] = list(getattr(cls, '__di_packages__', []))
+        cls.__di_packages__ = [module_path] + existing  # type: ignore[attr-defined]
+        return cls
+    return decorator

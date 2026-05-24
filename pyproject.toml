@@ -29,3 +29,8 @@ Issues = "https://github.com/amnz/withdico/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["withdico"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

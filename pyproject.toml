@@ -9,7 +9,7 @@ description = "Lightweight dependency injection container for Python with Conven
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
-authors = [{ name = "TAKANO Taku", email = "amnz.is@gmail.com" }]
+authors = [{ name = "amnz", email = "amnz.is@gmail.com" }]
 keywords = ["dependency injection", "di", "ioc", "container"]
 classifiers = [
     "Development Status :: 3 - Alpha",

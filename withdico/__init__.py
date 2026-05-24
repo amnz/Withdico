@@ -11,7 +11,7 @@ DEFAULT_NAME = "primary"
 _IMPL_PREFIX = "Default"
 
 
-class DiCocImplementationException(Exception):
+class WithdicoImplementationException(Exception):
     def __init__(self, impl_name: str) -> None:
         super().__init__(
             f"Implementation class '{impl_name}' not found. "
@@ -19,23 +19,23 @@ class DiCocImplementationException(Exception):
         )
 
 
-class DiCocCircularDependencyException(Exception):
+class WithdicoCircularDependencyException(Exception):
     def __init__(self, cycle: str) -> None:
         super().__init__(f"Circular dependency detected: {cycle}")
 
 
-class DiCoc:
+class Withdico:
     DEFAULT_NAME = "primary"
 
-    _me: "DiCoc | None" = None
+    _me: "Withdico | None" = None
 
     def __init__(self) -> None:
         self._singletons: dict[str, object] = {}
         self._factories: dict[str, Callable[[], object]] = {}
-        DiCoc._me = self
+        Withdico._me = self
 
     @classmethod
-    def _get_instance(cls) -> "DiCoc":
+    def _get_instance(cls) -> "Withdico":
         if cls._me is None:
             cls._me = cls()
         return cls._me
@@ -112,7 +112,7 @@ class DiCoc:
 
         if type_ in _chain:
             cycle = " → ".join(t.__name__ for t in (*_chain, type_))
-            raise DiCocCircularDependencyException(cycle)
+            raise WithdicoCircularDependencyException(cycle)
 
         impl_cls = self._resolve_implementation(type_)
         _chain = (*_chain, type_)
@@ -130,7 +130,7 @@ class DiCoc:
             if param_type is None:
                 raise TypeError(
                     f"Constructor parameter '{param_name}' of '{impl_cls.__qualname__}' "
-                    f"has no type annotation. DiCoc requires type hints for auto-wiring."
+                    f"has no type annotation. Withdico requires type hints for auto-wiring."
                 )
             args.append(self._find(param_type, _chain=_chain))
 
@@ -167,12 +167,12 @@ class DiCoc:
             if isinstance(impl_cls, type):
                 return impl_cls
 
-        raise DiCocImplementationException(impl_name)
+        raise WithdicoImplementationException(impl_name)
 
 
-def resolve(type_: type[T], name: str = DiCoc.DEFAULT_NAME) -> T:
-    """DiCoc.resolve() のショートカット関数"""
-    return DiCoc.resolve(type_, name)
+def resolve(type_: type[T], name: str = Withdico.DEFAULT_NAME) -> T:
+    """Withdico.resolve() のショートカット関数"""
+    return Withdico.resolve(type_, name)
 
 
 def package(module_path: str) -> Callable[[type[T]], type[T]]:

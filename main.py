@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from withdico import DiCoc, resolve
+from withdico import Withdico, resolve
 
 
 # --- サンプル定義 ---
@@ -39,8 +39,8 @@ def main() -> None:
         def greet(self, name: str) -> str:
             return f"Hi, {name}! (mock)"
 
-    DiCoc.register(Greeter, MockGreeter())
-    DiCoc.unregister(App)  # App のキャッシュをクリアして再生成させる
+    Withdico.register(Greeter, MockGreeter())
+    Withdico.unregister(App)  # App のキャッシュをクリアして再生成させる
 
     app3 = resolve(App)
     app3.run()

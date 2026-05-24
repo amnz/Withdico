@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 
 import pytest
 
-from withdico import DiCoc, DiCocCircularDependencyException, DiCocImplementationException, package, resolve
+from withdico import Withdico, WithdicoCircularDependencyException, WithdicoImplementationException, package, resolve
 
 
 # ── モジュールレベルのテスト用クラス（CoC に必要） ───────────────────────────
@@ -90,9 +90,9 @@ class CyclicZ:
 @pytest.fixture(autouse=True)
 def reset_container():
     """各テスト前後でコンテナをリセットし、テスト間の干渉を防ぐ"""
-    DiCoc.reset()
+    Withdico.reset()
     yield
-    DiCoc.reset()
+    Withdico.reset()
 
 
 @pytest.fixture()
@@ -145,7 +145,7 @@ class TestRegister:
             def greet(self, name: str) -> str:
                 return "mocked"
 
-        DiCoc.register(Greeter, MockGreeter())
+        Withdico.register(Greeter, MockGreeter())
         assert resolve(Greeter).greet("x") == "mocked"
 
     def test_unregister_falls_back_to_coc(self):
@@ -153,31 +153,31 @@ class TestRegister:
             def greet(self, name: str) -> str:
                 return "mocked"
 
-        DiCoc.register(Greeter, MockGreeter())
-        DiCoc.unregister(Greeter)
+        Withdico.register(Greeter, MockGreeter())
+        Withdico.unregister(Greeter)
         assert isinstance(resolve(Greeter), DefaultGreeter)
 
     def test_is_registered_true_after_register(self):
-        DiCoc.register(Greeter, DefaultGreeter())
-        assert DiCoc.is_registered(Greeter) is True
+        Withdico.register(Greeter, DefaultGreeter())
+        assert Withdico.is_registered(Greeter) is True
 
     def test_is_registered_false_before_register(self):
-        assert DiCoc.is_registered(Greeter) is False
+        assert Withdico.is_registered(Greeter) is False
 
     def test_reset_clears_all_registered_instances(self):
-        DiCoc.register(Greeter, DefaultGreeter())
-        DiCoc.reset()
-        assert DiCoc.is_registered(Greeter) is False
+        Withdico.register(Greeter, DefaultGreeter())
+        Withdico.reset()
+        assert Withdico.is_registered(Greeter) is False
 
     def test_name_parameter_manages_separate_instances(self):
         class JaGreeter(Greeter):
             def greet(self, name: str) -> str:
                 return f"こんにちは、{name}！"
 
-        DiCoc.register(Greeter, DefaultGreeter(), name="en")
-        DiCoc.register(Greeter, JaGreeter(), name="ja")
-        en = DiCoc.resolve(Greeter, name="en")
-        ja = DiCoc.resolve(Greeter, name="ja")
+        Withdico.register(Greeter, DefaultGreeter(), name="en")
+        Withdico.register(Greeter, JaGreeter(), name="ja")
+        en = Withdico.resolve(Greeter, name="en")
+        ja = Withdico.resolve(Greeter, name="ja")
 
         assert en is not ja
         assert en.greet("W") == "Hello, W!"
@@ -196,7 +196,7 @@ class TestRegisterFactory:
             call_count += 1
             return SimpleService()
 
-        DiCoc.register_factory(SimpleService, factory)
+        Withdico.register_factory(SimpleService, factory)
         resolve(SimpleService)
         assert call_count == 1
 
@@ -209,7 +209,7 @@ class TestRegisterFactory:
             call_count += 1
             return SimpleService()
 
-        DiCoc.register_factory(SimpleService, factory)
+        Withdico.register_factory(SimpleService, factory)
         a = resolve(SimpleService)
         b = resolve(SimpleService)
         assert a is b
@@ -220,28 +220,28 @@ class TestRegisterFactory:
             def greet(self, name: str) -> str:
                 return "from factory"
 
-        DiCoc.register_factory(Greeter, SpecialGreeter)
+        Withdico.register_factory(Greeter, SpecialGreeter)
         assert resolve(Greeter).greet("x") == "from factory"
 
     def test_factory_with_name_parameter(self):
-        DiCoc.register_factory(SimpleService, SimpleService, name="named")
-        a = DiCoc.resolve(SimpleService, name="named")
-        b = DiCoc.resolve(SimpleService, name="named")
+        Withdico.register_factory(SimpleService, SimpleService, name="named")
+        a = Withdico.resolve(SimpleService, name="named")
+        b = Withdico.resolve(SimpleService, name="named")
         assert a is b
 
     def test_is_registered_true_after_register_factory(self):
-        DiCoc.register_factory(Greeter, DefaultGreeter)
-        assert DiCoc.is_registered(Greeter) is True
+        Withdico.register_factory(Greeter, DefaultGreeter)
+        assert Withdico.is_registered(Greeter) is True
 
     def test_unregister_also_removes_factory(self):
-        DiCoc.register_factory(Greeter, DefaultGreeter)
-        DiCoc.unregister(Greeter)
-        assert DiCoc.is_registered(Greeter) is False
+        Withdico.register_factory(Greeter, DefaultGreeter)
+        Withdico.unregister(Greeter)
+        assert Withdico.is_registered(Greeter) is False
 
     def test_reset_clears_factories(self):
-        DiCoc.register_factory(Greeter, DefaultGreeter)
-        DiCoc.reset()
-        assert DiCoc.is_registered(Greeter) is False
+        Withdico.register_factory(Greeter, DefaultGreeter)
+        Withdico.reset()
+        assert Withdico.is_registered(Greeter) is False
 
 
 # ── 4. try_resolve ────────────────────────────────────────────────────────────
@@ -249,7 +249,7 @@ class TestRegisterFactory:
 
 class TestTryResolve:
     def test_returns_none_when_not_registered(self):
-        assert DiCoc.try_resolve(Greeter) is None
+        assert Withdico.try_resolve(Greeter) is None
 
     def test_fallback_is_called_and_result_is_registered(self):
         class MockGreeter(Greeter):
@@ -257,14 +257,14 @@ class TestTryResolve:
                 return "fallback"
 
         mock = MockGreeter()
-        result = DiCoc.try_resolve(Greeter, if_not_registered=lambda: mock)
+        result = Withdico.try_resolve(Greeter, if_not_registered=lambda: mock)
         assert result is mock
-        assert DiCoc.is_registered(Greeter)
+        assert Withdico.is_registered(Greeter)
 
     def test_returns_existing_instance_when_registered(self):
         g = DefaultGreeter()
-        DiCoc.register(Greeter, g)
-        assert DiCoc.try_resolve(Greeter) is g
+        Withdico.register(Greeter, g)
+        assert Withdico.try_resolve(Greeter) is g
 
 
 # ── 5. @package デコレーター ──────────────────────────────────────────────────
@@ -407,8 +407,8 @@ class TestTestToken:
 
 class TestErrors:
     def test_no_default_impl_raises_exception(self):
-        """DefaultNoDefaultAbstract が存在しない場合は DiCocImplementationException"""
-        with pytest.raises(DiCocImplementationException):
+        """DefaultNoDefaultAbstract が存在しない場合は WithdicoImplementationException"""
+        with pytest.raises(WithdicoImplementationException):
             resolve(NoDefaultAbstract)
 
     def test_constructor_param_without_annotation_raises_type_error(self):
@@ -417,16 +417,16 @@ class TestErrors:
             resolve(NoAnnotationService)
 
     def test_circular_dependency_raises_exception(self):
-        """A → B → A の循環依存は DiCocCircularDependencyException"""
-        with pytest.raises(DiCocCircularDependencyException):
+        """A → B → A の循環依存は WithdicoCircularDependencyException"""
+        with pytest.raises(WithdicoCircularDependencyException):
             resolve(CyclicA)
 
     def test_circular_dependency_message_shows_cycle(self):
         """エラーメッセージに循環のパスが含まれる"""
-        with pytest.raises(DiCocCircularDependencyException, match=r"CyclicA.*CyclicB.*CyclicA"):
+        with pytest.raises(WithdicoCircularDependencyException, match=r"CyclicA.*CyclicB.*CyclicA"):
             resolve(CyclicA)
 
     def test_three_class_circular_dependency(self):
         """X → Y → Z → X の3クラスの循環依存も検出される"""
-        with pytest.raises(DiCocCircularDependencyException, match=r"CyclicX.*CyclicY.*CyclicZ.*CyclicX"):
+        with pytest.raises(WithdicoCircularDependencyException, match=r"CyclicX.*CyclicY.*CyclicZ.*CyclicX"):
             resolve(CyclicX)

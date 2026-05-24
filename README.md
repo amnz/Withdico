@@ -59,9 +59,9 @@ assert app1 is app2  # True
 
 ```python
 import os
-from withdico import DiCoc, resolve
+from withdico import Withdico, resolve
 
-DiCoc.register_factory(Config, lambda: Config(path=os.environ["CONFIG_PATH"]))
+Withdico.register_factory(Config, lambda: Config(path=os.environ["CONFIG_PATH"]))
 
 config = resolve(Config)  # このときはじめてファクトリーが呼ばれる
 resolve(Config) is config  # True（以降はキャッシュを返す）
@@ -70,14 +70,14 @@ resolve(Config) is config  # True（以降はキャッシュを返す）
 ### 4. テスト時のモック差し替え
 
 ```python
-from withdico import DiCoc
+from withdico import Withdico
 
 class MockGreeter(Greeter):
     def greet(self, name: str) -> str:
         return "mocked!"
 
-DiCoc.register(Greeter, MockGreeter())
-DiCoc.unregister(App)  # App のキャッシュをクリアして再生成させる
+Withdico.register(Greeter, MockGreeter())
+Withdico.unregister(App)  # App のキャッシュをクリアして再生成させる
 
 app = resolve(App)
 app.greeter.greet("World")  # "mocked!"
@@ -86,7 +86,7 @@ app.greeter.greet("World")  # "mocked!"
 テスト間でシングルトンをすべてリセットしたい場合：
 
 ```python
-DiCoc.reset()
+Withdico.reset()
 ```
 
 ### 5. 複数インスタンスの管理（name 引数）
@@ -94,11 +94,11 @@ DiCoc.reset()
 同じ型に対して複数のインスタンスを名前で使い分けることができます。
 
 ```python
-DiCoc.register(Greeter, JaGreeter(), name="ja")
-DiCoc.register(Greeter, EnGreeter(), name="en")
+Withdico.register(Greeter, JaGreeter(), name="ja")
+Withdico.register(Greeter, EnGreeter(), name="en")
 
-ja = DiCoc.resolve(Greeter, name="ja")
-en = DiCoc.resolve(Greeter, name="en")
+ja = Withdico.resolve(Greeter, name="ja")
+en = Withdico.resolve(Greeter, name="en")
 ```
 
 ---
@@ -202,13 +202,13 @@ def test_b(monkeypatch):
 | API | 説明 |
 |---|---|
 | `resolve(Type)` | シングルトン取得（CoC で自動生成） |
-| `DiCoc.resolve(Type, name)` | `resolve()` と同じ（name 指定可） |
-| `DiCoc.register(Type, instance, name)` | インスタンスを事前登録 |
-| `DiCoc.register_factory(Type, factory, name)` | ファクトリー関数を登録（初回 resolve 時に呼び出し） |
-| `DiCoc.unregister(Type, name)` | シングルトン／ファクトリーの登録を解除 |
-| `DiCoc.is_registered(Type, name)` | シングルトンまたはファクトリーとして登録済みか確認 |
-| `DiCoc.try_resolve(Type, name, if_not_registered)` | 未登録なら `None` またはフォールバック |
-| `DiCoc.reset()` | 全シングルトン／ファクトリーをリセット |
+| `Withdico.resolve(Type, name)` | `resolve()` と同じ（name 指定可） |
+| `Withdico.register(Type, instance, name)` | インスタンスを事前登録 |
+| `Withdico.register_factory(Type, factory, name)` | ファクトリー関数を登録（初回 resolve 時に呼び出し） |
+| `Withdico.unregister(Type, name)` | シングルトン／ファクトリーの登録を解除 |
+| `Withdico.is_registered(Type, name)` | シングルトンまたはファクトリーとして登録済みか確認 |
+| `Withdico.try_resolve(Type, name, if_not_registered)` | 未登録なら `None` またはフォールバック |
+| `Withdico.reset()` | 全シングルトン／ファクトリーをリセット |
 | `@package(module_path)` | 実装クラスの検索先モジュールを指定（複数可） |
 
 ## resolve の優先順位
@@ -236,8 +236,8 @@ Greeter (ABC)  →  DefaultGreeter
 
 | 例外 | 発生条件 |
 |---|---|
-| `DiCocImplementationException` | 抽象クラスに対応する `DefaultXxx` が見つからない |
-| `DiCocCircularDependencyException` | 循環依存（A→B→A など）を検出した |
+| `WithdicoImplementationException` | 抽象クラスに対応する `DefaultXxx` が見つからない |
+| `WithdicoCircularDependencyException` | 循環依存（A→B→A など）を検出した |
 | `TypeError` | コンストラクタ引数に型アノテーションがない |
 
 ## ライセンス

@@ -123,8 +123,11 @@ class DiCoc:
 
         impl_name = _IMPL_PREFIX + type_.__name__
 
-        search_paths: list[str] = list(getattr(type_, '__di_packages__', []))
-        search_paths.append(type_.__module__)  # 同一モジュールをフォールバックとして末尾に追加
+        base_paths: list[str] = list(getattr(type_, '__di_packages__', []))
+        base_paths.append(type_.__module__)  # 同一モジュールをフォールバックとして末尾に追加
+
+        env = os.environ.get("Environment", "")
+        search_paths = [f"{p}.{env}" for p in base_paths] + base_paths if env else base_paths
 
         for module_path in search_paths:
             if module_path not in sys.modules:

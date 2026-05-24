@@ -219,16 +219,36 @@ register() で登録済み  →  register_factory() で登録済み  →  CoC（
 
 ## Convention over Configuration
 
+抽象クラスを `resolve()` すると、実装クラスを自動的に探して生成します。
+
+### 検索ルール
+
+| 検索先 | 探すクラス名 |
+|---|---|
+| 外部モジュール（`@package` 指定 / env サブパッケージ） | `ClassName` → `DefaultClassName` の順 |
+| 同一モジュール（フォールバック） | `DefaultClassName` のみ |
+
+同一モジュールで `ClassName` を探さないのは、そのクラス自身が今まさに解決しようとしている抽象クラスだからです。
+
+### 完全な検索順の例
+
+`@package('tool.config') @package('config')` が指定された `common.Database`（抽象）を `Environment=staging` で resolve する場合：
+
 ```
-Greeter (ABC)  →  DefaultGreeter
+ 1. tool.config.staging.Database      ← 外部モジュール × env × 同名
+ 2. tool.config.staging.DefaultDatabase
+ 3. config.staging.Database
+ 4. config.staging.DefaultDatabase
+ 5. common.staging.Database
+ 6. common.staging.DefaultDatabase
+ 7. tool.config.Database              ← 外部モジュール × 同名
+ 8. tool.config.DefaultDatabase
+ 9. config.Database
+10. config.DefaultDatabase
+11. common.DefaultDatabase            ← 同一モジュールは DefaultXxx のみ
 ```
 
-抽象クラスを `resolve()` すると、以下の優先順位で `DefaultXxx` クラスを探します：
-
-1. `@package` で指定されたモジュール（記述順）
-2. 同一モジュール（フォールバック）
-
-`Environment` 環境変数が設定されている場合は、各候補の `.{env}` サブパッケージが先に検索されます。
+見つかったクラスが抽象クラスの場合はスキップして次の候補へ進みます。
 
 明示的に `register()` または `register_factory()` した場合はすべての CoC より優先されます。
 

@@ -312,6 +312,56 @@ class TestPackageDecorator:
         g = resolve(FallbackGreeter)
         assert g.greet("x") == "from b"
 
+    def test_same_class_name_in_external_module_takes_priority_over_default_prefix(
+        self, extra_modules
+    ):
+        """外部モジュールでは ClassName が DefaultClassName より優先される"""
+        _make_module("pkg.impl", "SameNameGreeter", "same name")
+        # pkg.impl には SameNameGreeter（具象）も DefaultSameNameGreeter も置く
+        sys.modules["pkg.impl"].__dict__["DefaultSameNameGreeter"] = type(
+            "DefaultSameNameGreeter", (), {"greet": lambda self, n: "default prefix"}
+        )
+        extra_modules.append("pkg.impl")
+
+        @package("pkg.impl")
+        class SameNameGreeter(ABC):
+            @abstractmethod
+            def greet(self, name: str) -> str: ...
+
+        g = resolve(SameNameGreeter)
+        assert g.greet("x") == "same name"  # Default より同名クラスが優先
+
+    def test_abstract_same_name_in_external_module_is_skipped(self, extra_modules):
+        """外部モジュールの同名クラスが抽象クラスの場合はスキップして DefaultXxx を使う"""
+        import abc as _abc
+        m = types.ModuleType("pkg.abs")
+        # 抽象クラスとして AbstractSkipGreeter を配置
+        abstract_cls = type(
+            "AbstractSkipGreeter",
+            (_abc.ABC,),
+            {"greet": _abc.abstractmethod(lambda self, n: ...)},
+        )
+        m.__dict__["AbstractSkipGreeter"] = abstract_cls
+        m.__dict__["DefaultAbstractSkipGreeter"] = type(
+            "DefaultAbstractSkipGreeter", (), {"greet": lambda self, n: "default"}
+        )
+        sys.modules["pkg.abs"] = m
+        extra_modules.append("pkg.abs")
+
+        @package("pkg.abs")
+        class AbstractSkipGreeter(ABC):
+            @abstractmethod
+            def greet(self, name: str) -> str: ...
+
+        g = resolve(AbstractSkipGreeter)
+        assert g.greet("x") == "default"  # 抽象の同名クラスはスキップ → DefaultXxx へ
+
+    def test_same_module_uses_only_default_prefix_not_class_name(self):
+        """同一モジュールでは DefaultXxx のみ探す（ClassName 自身は抽象クラスのため除外）"""
+        # Greeter（抽象）は同一モジュールにあるが、resolve は DefaultGreeter を返す
+        g = resolve(Greeter)
+        assert type(g).__name__ == "DefaultGreeter"
+
 
 # ── 6. Environment 環境変数 ───────────────────────────────────────────────────
 

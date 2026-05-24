@@ -141,17 +141,24 @@ class Withdico:
     def _resolve_implementation(self, type_: type) -> type:
         """
         CoC (Convention over Configuration):
-        抽象クラス（ABCやProtocol）の場合、"Default" + クラス名 の実装クラスを探す。
-        検索順: @package デコレーターで指定されたモジュール（記述順）→ 同一モジュール（フォールバック）
+        抽象クラス（ABCやProtocol）の場合、実装クラスを以下の優先順位で探す。
+
+        外部モジュール（@package 指定 / env サブパッケージ）:
+          ClassName → DefaultClassName の順で検索（具象クラスのみ対象）
+        同一モジュール（フォールバック）:
+          DefaultClassName のみ（ClassName は抽象クラス自身のため除外）
+
         具象クラスの場合はそのまま使用する。
         """
         if not inspect.isabstract(type_):
             return type_
 
-        impl_name = _IMPL_PREFIX + type_.__name__
+        class_name = type_.__name__
+        impl_name = _IMPL_PREFIX + class_name
+        same_module = type_.__module__
 
         base_paths: list[str] = list(getattr(type_, '__di_packages__', []))
-        base_paths.append(type_.__module__)  # 同一モジュールをフォールバックとして末尾に追加
+        base_paths.append(same_module)
 
         env = os.environ.get("Environment", "")
         search_paths = [f"{p}.{env}" for p in base_paths] + base_paths if env else base_paths
@@ -163,9 +170,15 @@ class Withdico:
                 except ImportError:
                     continue
             module = sys.modules.get(module_path)
-            impl_cls = getattr(module, impl_name, None) if module else None
-            if isinstance(impl_cls, type):
-                return impl_cls
+            if module is None:
+                continue
+
+            # 同一モジュールは DefaultXxx のみ（ClassName 自身が抽象クラスのため除外）
+            candidates = (impl_name,) if module_path == same_module else (class_name, impl_name)
+            for name in candidates:
+                impl_cls = getattr(module, name, None)
+                if isinstance(impl_cls, type) and not inspect.isabstract(impl_cls):
+                    return impl_cls
 
         raise WithdicoImplementationException(impl_name)
 

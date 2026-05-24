@@ -19,6 +19,11 @@ class DiCocImplementationException(Exception):
         )
 
 
+class DiCocCircularDependencyException(Exception):
+    def __init__(self, cycle: str) -> None:
+        super().__init__(f"Circular dependency detected: {cycle}")
+
+
 class DiCoc:
     DEFAULT_NAME = "primary"
 
@@ -83,12 +88,17 @@ class DiCoc:
             return instance
         return cls.resolve(type_, name)
 
-    def _find(self, type_: type[T], name: str = DEFAULT_NAME) -> T:
+    def _find(self, type_: type[T], name: str = DEFAULT_NAME, _chain: tuple[type, ...] = ()) -> T:
         key = self._type_key(type_, name)
         if key in self._singletons:
             return self._singletons[key]  # type: ignore[return-value]
 
+        if type_ in _chain:
+            cycle = " → ".join(t.__name__ for t in (*_chain, type_))
+            raise DiCocCircularDependencyException(cycle)
+
         impl_cls = self._resolve_implementation(type_)
+        _chain = (*_chain, type_)
 
         hints = typing.get_type_hints(impl_cls.__init__)
         sig = inspect.signature(impl_cls.__init__)
@@ -105,7 +115,7 @@ class DiCoc:
                     f"Constructor parameter '{param_name}' of '{impl_cls.__qualname__}' "
                     f"has no type annotation. DiCoc requires type hints for auto-wiring."
                 )
-            args.append(self._find(param_type))
+            args.append(self._find(param_type, _chain=_chain))
 
         result: T = impl_cls(*args)  # type: ignore[call-arg]
         self._singletons[key] = result  # type: ignore[assignment]

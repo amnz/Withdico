@@ -11,7 +11,7 @@ withdico の単体テスト
   7. @package デコレーター（優先順位・複数指定・フォールバック）
   8. Environment 環境変数（環境別サブパッケージの優先検索）
   9. TEST_TOKEN によるテスト分離
- 10. エラーケース
+ 10. エラーケース（実装クラス未発見・型アノテーションなし・循環依存）
 """
 
 import sys
@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 
 import pytest
 
-from withdico import DiCoc, DiCocImplementationException, package, resolve
+from withdico import DiCoc, DiCocCircularDependencyException, DiCocImplementationException, package, resolve
 
 
 # ── モジュールレベルのテスト用クラス（CoC に必要） ───────────────────────────
@@ -58,6 +58,29 @@ class NoAnnotationService:
     """型アノテーションなしのコンストラクタ引数 → 例外"""
     def __init__(self, dep) -> None:  # noqa: ANN001
         self.dep = dep
+
+
+# 循環依存: CyclicA → CyclicB → CyclicA
+class CyclicA:
+    def __init__(self, b: "CyclicB") -> None:
+        self.b = b
+
+class CyclicB:
+    def __init__(self, a: CyclicA) -> None:
+        self.a = a
+
+# 3クラスの循環: CyclicX → CyclicY → CyclicZ → CyclicX
+class CyclicX:
+    def __init__(self, y: "CyclicY") -> None:
+        self.y = y
+
+class CyclicY:
+    def __init__(self, z: "CyclicZ") -> None:
+        self.z = z
+
+class CyclicZ:
+    def __init__(self, x: CyclicX) -> None:
+        self.x = x
 
 
 # ── フィクスチャ ──────────────────────────────────────────────────────────────
@@ -331,3 +354,18 @@ class TestErrors:
         """型アノテーションのないコンストラクタ引数は TypeError"""
         with pytest.raises(TypeError, match="has no type annotation"):
             resolve(NoAnnotationService)
+
+    def test_circular_dependency_raises_exception(self):
+        """A → B → A の循環依存は DiCocCircularDependencyException"""
+        with pytest.raises(DiCocCircularDependencyException):
+            resolve(CyclicA)
+
+    def test_circular_dependency_message_shows_cycle(self):
+        """エラーメッセージに循環のパスが含まれる"""
+        with pytest.raises(DiCocCircularDependencyException, match=r"CyclicA.*CyclicB.*CyclicA"):
+            resolve(CyclicA)
+
+    def test_three_class_circular_dependency(self):
+        """X → Y → Z → X の3クラスの循環依存も検出される"""
+        with pytest.raises(DiCocCircularDependencyException, match=r"CyclicX.*CyclicY.*CyclicZ.*CyclicX"):
+            resolve(CyclicX)

@@ -52,7 +52,22 @@ app2 = resolve(App)
 assert app1 is app2  # True
 ```
 
-### 3. テスト時のモック差し替え
+### 3. ファクトリー登録
+
+構築ロジックが複雑な場合や、起動時の環境変数に依存する場合は `register_factory` を使います。
+ファクトリーは最初の `resolve` 時に一度だけ呼ばれ、結果はシングルトンとしてキャッシュされます。
+
+```python
+import os
+from withdico import DiCoc, resolve
+
+DiCoc.register_factory(Config, lambda: Config(path=os.environ["CONFIG_PATH"]))
+
+config = resolve(Config)  # このときはじめてファクトリーが呼ばれる
+resolve(Config) is config  # True（以降はキャッシュを返す）
+```
+
+### 4. テスト時のモック差し替え
 
 ```python
 from withdico import DiCoc
@@ -74,7 +89,7 @@ app.greeter.greet("World")  # "mocked!"
 DiCoc.reset()
 ```
 
-### 4. 複数インスタンスの管理（name 引数）
+### 5. 複数インスタンスの管理（name 引数）
 
 同じ型に対して複数のインスタンスを名前で使い分けることができます。
 
@@ -189,11 +204,18 @@ def test_b(monkeypatch):
 | `resolve(Type)` | シングルトン取得（CoC で自動生成） |
 | `DiCoc.resolve(Type, name)` | `resolve()` と同じ（name 指定可） |
 | `DiCoc.register(Type, instance, name)` | インスタンスを事前登録 |
-| `DiCoc.unregister(Type, name)` | 登録解除 |
-| `DiCoc.is_registered(Type, name)` | 登録済みか確認 |
+| `DiCoc.register_factory(Type, factory, name)` | ファクトリー関数を登録（初回 resolve 時に呼び出し） |
+| `DiCoc.unregister(Type, name)` | シングルトン／ファクトリーの登録を解除 |
+| `DiCoc.is_registered(Type, name)` | シングルトンまたはファクトリーとして登録済みか確認 |
 | `DiCoc.try_resolve(Type, name, if_not_registered)` | 未登録なら `None` またはフォールバック |
-| `DiCoc.reset()` | 全シングルトンをリセット |
+| `DiCoc.reset()` | 全シングルトン／ファクトリーをリセット |
 | `@package(module_path)` | 実装クラスの検索先モジュールを指定（複数可） |
+
+## resolve の優先順位
+
+```
+register() で登録済み  →  register_factory() で登録済み  →  CoC（DefaultXxx 自動解決）
+```
 
 ## Convention over Configuration
 
@@ -208,7 +230,15 @@ Greeter (ABC)  →  DefaultGreeter
 
 `Environment` 環境変数が設定されている場合は、各候補の `.{env}` サブパッケージが先に検索されます。
 
-明示的に `register()` した場合はすべての CoC より優先されます。
+明示的に `register()` または `register_factory()` した場合はすべての CoC より優先されます。
+
+## エラー
+
+| 例外 | 発生条件 |
+|---|---|
+| `DiCocImplementationException` | 抽象クラスに対応する `DefaultXxx` が見つからない |
+| `DiCocCircularDependencyException` | 循環依存（A→B→A など）を検出した |
+| `TypeError` | コンストラクタ引数に型アノテーションがない |
 
 ## ライセンス
 

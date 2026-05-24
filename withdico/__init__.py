@@ -31,6 +31,7 @@ class DiCoc:
 
     def __init__(self) -> None:
         self._singletons: dict[str, object] = {}
+        self._factories: dict[str, Callable[[], object]] = {}
         DiCoc._me = self
 
     @classmethod
@@ -41,8 +42,10 @@ class DiCoc:
 
     @classmethod
     def reset(cls) -> None:
-        """登録・初期化済みシングルトンをすべてリセット"""
-        cls._get_instance()._singletons = {}
+        """登録・初期化済みシングルトン／ファクトリーをすべてリセット"""
+        di = cls._get_instance()
+        di._singletons = {}
+        di._factories = {}
 
     def _type_key(self, type_: type, name: str) -> str:
         test_token = os.environ.get("TEST_TOKEN", "")
@@ -56,16 +59,25 @@ class DiCoc:
         di._singletons[di._type_key(type_, name)] = instance  # type: ignore[assignment]
 
     @classmethod
-    def unregister(cls, type_: type[T], name: str = DEFAULT_NAME) -> None:
-        """シングルトン登録解除"""
+    def register_factory(cls, type_: type[T], factory: Callable[[], T], name: str = DEFAULT_NAME) -> None:
+        """ファクトリー登録：最初の resolve 時にファクトリーを呼び出し、結果をシングルトンとしてキャッシュする"""
         di = cls._get_instance()
-        di._singletons.pop(di._type_key(type_, name), None)
+        di._factories[di._type_key(type_, name)] = factory  # type: ignore[assignment]
+
+    @classmethod
+    def unregister(cls, type_: type[T], name: str = DEFAULT_NAME) -> None:
+        """シングルトン／ファクトリーの登録を解除"""
+        di = cls._get_instance()
+        key = di._type_key(type_, name)
+        di._singletons.pop(key, None)
+        di._factories.pop(key, None)
 
     @classmethod
     def is_registered(cls, type_: type[T], name: str = DEFAULT_NAME) -> bool:
-        """指定された type がすでに登録されているか確認"""
+        """指定された type がシングルトンまたはファクトリーとして登録済みか確認"""
         di = cls._get_instance()
-        return di._type_key(type_, name) in di._singletons
+        key = di._type_key(type_, name)
+        return key in di._singletons or key in di._factories
 
     @classmethod
     def resolve(cls, type_: type[T], name: str = DEFAULT_NAME) -> T:
@@ -92,6 +104,11 @@ class DiCoc:
         key = self._type_key(type_, name)
         if key in self._singletons:
             return self._singletons[key]  # type: ignore[return-value]
+
+        if key in self._factories:
+            result: T = self._factories[key]()  # type: ignore[return-value]
+            self._singletons[key] = result  # type: ignore[assignment]
+            return result
 
         if type_ in _chain:
             cycle = " → ".join(t.__name__ for t in (*_chain, type_))

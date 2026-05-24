@@ -7,11 +7,12 @@ withdico の単体テスト
   3. コンストラクタの自動解決（オートワイヤリング）
   4. シングルトン
   5. register / unregister / is_registered / reset
-  6. try_resolve
-  7. @package デコレーター（優先順位・複数指定・フォールバック）
-  8. Environment 環境変数（環境別サブパッケージの優先検索）
-  9. TEST_TOKEN によるテスト分離
- 10. エラーケース（実装クラス未発見・型アノテーションなし・循環依存）
+  6. register_factory（ファクトリー登録）
+  7. try_resolve
+  8. @package デコレーター（優先順位・複数指定・フォールバック）
+  9. Environment 環境変数（環境別サブパッケージの優先検索）
+ 10. TEST_TOKEN によるテスト分離
+ 11. エラーケース（実装クラス未発見・型アノテーションなし・循環依存）
 """
 
 import sys
@@ -183,7 +184,67 @@ class TestRegister:
         assert ja.greet("W") == "こんにちは、W！"
 
 
-# ── 3. try_resolve ────────────────────────────────────────────────────────────
+# ── 3. register_factory ──────────────────────────────────────────────────────
+
+
+class TestRegisterFactory:
+    def test_factory_is_called_on_first_resolve(self):
+        call_count = 0
+
+        def factory() -> SimpleService:
+            nonlocal call_count
+            call_count += 1
+            return SimpleService()
+
+        DiCoc.register_factory(SimpleService, factory)
+        resolve(SimpleService)
+        assert call_count == 1
+
+    def test_factory_result_is_cached_as_singleton(self):
+        """2回目以降はファクトリーを呼ばずキャッシュを返す"""
+        call_count = 0
+
+        def factory() -> SimpleService:
+            nonlocal call_count
+            call_count += 1
+            return SimpleService()
+
+        DiCoc.register_factory(SimpleService, factory)
+        a = resolve(SimpleService)
+        b = resolve(SimpleService)
+        assert a is b
+        assert call_count == 1
+
+    def test_factory_overrides_coc(self):
+        class SpecialGreeter(Greeter):
+            def greet(self, name: str) -> str:
+                return "from factory"
+
+        DiCoc.register_factory(Greeter, SpecialGreeter)
+        assert resolve(Greeter).greet("x") == "from factory"
+
+    def test_factory_with_name_parameter(self):
+        DiCoc.register_factory(SimpleService, SimpleService, name="named")
+        a = DiCoc.resolve(SimpleService, name="named")
+        b = DiCoc.resolve(SimpleService, name="named")
+        assert a is b
+
+    def test_is_registered_true_after_register_factory(self):
+        DiCoc.register_factory(Greeter, DefaultGreeter)
+        assert DiCoc.is_registered(Greeter) is True
+
+    def test_unregister_also_removes_factory(self):
+        DiCoc.register_factory(Greeter, DefaultGreeter)
+        DiCoc.unregister(Greeter)
+        assert DiCoc.is_registered(Greeter) is False
+
+    def test_reset_clears_factories(self):
+        DiCoc.register_factory(Greeter, DefaultGreeter)
+        DiCoc.reset()
+        assert DiCoc.is_registered(Greeter) is False
+
+
+# ── 4. try_resolve ────────────────────────────────────────────────────────────
 
 
 class TestTryResolve:
@@ -206,7 +267,7 @@ class TestTryResolve:
         assert DiCoc.try_resolve(Greeter) is g
 
 
-# ── 4. @package デコレーター ──────────────────────────────────────────────────
+# ── 5. @package デコレーター ──────────────────────────────────────────────────
 
 
 class TestPackageDecorator:
@@ -252,7 +313,7 @@ class TestPackageDecorator:
         assert g.greet("x") == "from b"
 
 
-# ── 5. Environment 環境変数 ───────────────────────────────────────────────────
+# ── 6. Environment 環境変数 ───────────────────────────────────────────────────
 
 
 class TestEnvironment:
@@ -321,7 +382,7 @@ class TestEnvironment:
         assert isinstance(g, DefaultGreeter)
 
 
-# ── 6. TEST_TOKEN によるテスト分離 ────────────────────────────────────────────
+# ── 7. TEST_TOKEN によるテスト分離 ────────────────────────────────────────────
 
 
 class TestTestToken:
@@ -341,7 +402,7 @@ class TestTestToken:
         assert a is b
 
 
-# ── 7. エラーケース ───────────────────────────────────────────────────────────
+# ── 8. エラーケース ───────────────────────────────────────────────────────────
 
 
 class TestErrors:
